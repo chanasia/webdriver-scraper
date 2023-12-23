@@ -1,0 +1,11 @@
+version: '3'
+
+services:
+  selenium:
+    container_name: selenium-chrome
+    image: 'selenium/standalone-chrome:120.0.6099.109'
+    ports:
+      - 4444:4444
+    volumes:
+      - /dev/shm:/dev/shm selenium/standalone-chrome
+    restart: 'unless-stopped'
