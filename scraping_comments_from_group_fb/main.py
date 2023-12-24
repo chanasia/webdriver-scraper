@@ -91,8 +91,8 @@ with sqlite3.connect("posts.db") as connection:
         """
       CREATE TABLE IF NOT EXISTS comments (
           id INTEGER PRIMARY KEY,
-          comment_by TEXT,
-          comment TEXT,
+          comment_by TEXT NOT NULL,
+          comment TEXT NOT NULL,
           post_id INTEGER NOT NULL,
           FOREIGN KEY (post_id) REFERENCES posts(id)
       )
@@ -103,10 +103,10 @@ with sqlite3.connect("posts.db") as connection:
         """
       CREATE TABLE IF NOT EXISTS replies (
           id INTEGER PRIMARY KEY,
-          reply_by TEXT,
+          reply_by TEXT NOT NULL,
           reply_to TEXT,
-          reply TEXT,
-          order INTEGER NOT NULL
+          reply TEXT NOT NULL,
+          reply_order INTEGER NOT NULL,
           comment_id INTEGER NOT NULL,
           FOREIGN KEY (comment_id) REFERENCES comments(id)
       )
@@ -134,19 +134,22 @@ def replies_scraping(box_comment):
         )
         for idx, box in enumerate(box_replies):
             reply = dict()
-            reply["replie_by"] = box.find_element(By.CSS_SELECTOR, "div > h3").text
+            reply["reply_by"] = box.find_element(By.CSS_SELECTOR, "div > h3").text
             try:
                 reply["reply_to"] = box.find_element(
-                    By.CSS_SELECTOR, "div > div:nth-child(2) > a"
+                    By.CSS_SELECTOR, "div > h3 + div > a"
                 ).text
             except:
                 None
-            reply_spans = box.find_elements(
-                By.CSS_SELECTOR, "div > div:nth-child(2) > span"
+            reply_array = box.find_elements(
+                By.CSS_SELECTOR, "div > h3 + div"
             )
-            reply["reply"] = "".join([reply_span.text for reply_span in reply_spans])
-            reply["order"] = idx
+            reply_comment = (''.join([reply_span.text for reply_span in reply_array]))
+            if reply.get("reply_to", None): reply_comment = reply_comment.replace(reply.get("reply_to", None),'')
+            reply['reply'] = reply_comment
+            reply["reply_order"] = idx
             replies.append(reply)
+            print(f"{reply['reply_by']}{ ' To ' + reply.get('reply_to', None) if reply.get('reply_to', None) else None } -> reply: {reply['reply']}")
         try:
             prev_comment_btn = WebDriverWait(driver, 2).until(
                 EC.element_to_be_clickable(
@@ -278,8 +281,8 @@ while True:
                     continue
                 for reply in replies:
                     cursor.execute(
-                        "INSERT INTO replies (reply_by, reply_to, reply, order, comment_id) VALUES (?, ?, ?, ?, ?)",
-                        (reply["reply_by"], reply["reply_to"], reply["reply"], reply['order'], comment_id),
+                        "INSERT INTO replies (reply_by, reply_to, reply, reply_order, comment_id) VALUES (?, ?, ?, ?, ?)",
+                        (reply["reply_by"], reply.get("reply_to", None), reply["reply"], reply['reply_order'], comment_id),
                     )
             connection.commit()
         print(f"Save to database complated as post_id: {post_id}.")
