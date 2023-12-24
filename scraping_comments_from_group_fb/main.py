@@ -45,6 +45,9 @@ driver = webdriver.Remote(
     command_executor="http://localhost:4444/wd/hub", options=options
 )
 
+# service = Service(executable_path='../webdriver/chromedriver.exe')
+# driver = webdriver.Chrome(service=service, options=options)
+
 print("Logging in")
 driver.get("https://mbasic.facebook.com/login.php")
 
@@ -117,12 +120,27 @@ with sqlite3.connect("posts.db") as connection:
 def replies_scraping(box_comment):
     try:
         replies_url = box_comment.find_element(
-            By.CSS_SELECTOR, "div > div:nth-child(5) > div[id] a[href]"
+            By.CSS_SELECTOR, "div > div:nth-of-type(4) > div[id] > div a[href]"
         ).get_attribute("href")
+        
         driver.execute_script(f"window.open('{replies_url}', '_blank')")
+        time.sleep(1)
         driver.switch_to.window(driver.window_handles[2])
     except:
         return []
+    
+    you_is_block = False
+    try:
+        you_is_block = driver.find_element(
+            By.CSS_SELECTOR,
+            'div[title="You’re Temporarily Blocked"] > h2',
+        ).text
+        
+        print("You’re Temporarily Blocked from viewing replies.")
+        you_is_block = True
+    except:
+        None
+    if you_is_block: sys.exit(1)
 
     reply_id = re.search(r"ctoken=(\d+_\d+)", driver.current_url).group(1)
     replies = []
@@ -163,6 +181,7 @@ def replies_scraping(box_comment):
         except:
             break
     driver.close()
+    time.sleep(1)
     driver.switch_to.window(driver.window_handles[1])
     return replies
 
@@ -170,6 +189,7 @@ def replies_scraping(box_comment):
 def comments_scraping():
     post_id = re.search(r"/permalink/(\d+)", driver.current_url).group(1)
     comments = []
+    next_page_btn_id = None
 
     while True:
         box_comments = driver.find_elements(
@@ -190,24 +210,32 @@ def comments_scraping():
             driver.switch_to.window(driver.window_handles[1])
 
             replies = replies_scraping(box_comment)
-            if replies:
+            if len(replies) != 0:
                 comment["replies"] = replies
 
             comments.append(comment)
 
+        if next_page_btn_id is None:
+            try: 
+                next_page_btn_id = driver.find_element(
+                    By.CSS_SELECTOR,
+                    f'#m_story_permalink_view div:last-of-type > div > div:nth-of-type(5) > div:has(>a)',
+                ).get_attribute('id')
+            except:
+                break
         try:
-            prev_comment_btn = WebDriverWait(driver, 2).until(
+            next_page_btn = WebDriverWait(driver, 2).until(
                 EC.element_to_be_clickable(
                     (
                         By.CSS_SELECTOR,
-                        f'#m_story_permalink_view > div[id] > div > div:not([id]) > div[id="see_prev_{post_id}"] > a',
+                        f'div[id="root"] div#{next_page_btn_id} > a',
                     )
                 )
             )
-            prev_comment_btn.click()
+            next_page_btn.click()
         except:
             break
-    print(f"Complete post id: {post_id}")
+    print(f"Complete post_id: {post_id}")
     return comments
 
 
@@ -239,10 +267,17 @@ def reset_tab():
 
 
 while True:
-    anchors = driver.find_elements(
-        By.CSS_SELECTOR, "article > footer > div:last-child > a:nth-child(5)"
+    anchor_all = driver.find_elements( #The program requires a discussion thread.
+        By.CSS_SELECTOR,
+        "#m_group_stories_container article > footer > div:last-child > a:nth-of-type(3)",
     )
-    anchors = [a.get_attribute("href") for a in anchors]
+    anchor_all = [a.get_attribute("href") for a in anchor_all]
+    anchor_post_shares = driver.find_elements(
+        By.CSS_SELECTOR,
+        "article:has(article) > footer > div:last-child > a:nth-of-type(3)",
+    )
+    anchor_post_shares = [a.get_attribute("href") for a in anchor_post_shares]
+    anchors = list(set(anchor_all) - set(anchor_post_shares))
 
     for a in anchors:
         post_id = re.search(r"/permalink/(\d+)", a).group(1)
@@ -251,13 +286,15 @@ while True:
             rows = cursor.execute(
                 "SELECT post_id FROM posts WHERE post_id=?", (post_id,)
             ).fetchall()
-            if not len(rows) == 0:
+            if len(rows) != 0:
                 print(f"Already have post_id : {post_id}")
                 continue
+        time.sleep(1)
         driver.execute_script(f"window.open('{a}', '_blank')")
+        time.sleep(1)
         driver.switch_to.window(driver.window_handles[1])
         print(f"Start scraping post_id: {post_id}.")
-
+        print(a)
         post = post_scraping()
 
         with sqlite3.connect("posts.db") as connection:
@@ -288,7 +325,9 @@ while True:
         print(f"Save to database complated as post_id: {post_id}.")
 
         driver.close()
+        time.sleep(1)
         driver.switch_to.window(driver.window_handles[0])
+        time.sleep(1)
     try:
         see_more_posts_btn = WebDriverWait(driver, 2).until(
             EC.element_to_be_clickable(
