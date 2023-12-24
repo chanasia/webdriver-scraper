@@ -7,5 +7,5 @@ services:
     ports:
       - 4444:4444
     volumes:
-      - /dev/shm:/dev/shm selenium/standalone-chrome
+      - '/dev/shm:/dev/shm selenium/standalone-chrome'
     restart: 'unless-stopped'

@@ -29,10 +29,12 @@ if load_dotenv():
     PASS = os.getenv("PASS")
     MAIN_GROUP_ID = os.getenv("MAIN_GROUP_ID")
 
-if not EMAIL or not PASS or MAIN_GROUP_ID:
-    print("Environment not found. Please check if the env has EMAIL, PASS and MAIN_GROUP_ID.")
+if not EMAIL or not PASS or not MAIN_GROUP_ID:
+    print(
+        "Environment not found. Please check if the env has EMAIL, PASS and MAIN_GROUP_ID."
+    )
     sys.exit(1)
-    
+
 
 options = webdriver.ChromeOptions()
 options.add_argument("--disable-notifications")
@@ -102,7 +104,9 @@ with sqlite3.connect("posts.db") as connection:
       CREATE TABLE IF NOT EXISTS replies (
           id INTEGER PRIMARY KEY,
           reply_by TEXT,
+          reply_to TEXT,
           reply TEXT,
+          order INTEGER NOT NULL
           comment_id INTEGER NOT NULL,
           FOREIGN KEY (comment_id) REFERENCES comments(id)
       )
@@ -128,13 +132,20 @@ def replies_scraping(box_comment):
             By.CSS_SELECTOR,
             'div[id="root"] > div[class] > div[id] + div > div:has(div)',
         )
-        for box in box_replies:
+        for idx, box in enumerate(box_replies):
             reply = dict()
             reply["replie_by"] = box.find_element(By.CSS_SELECTOR, "div > h3").text
-            reply["reply"] = box.find_element(
-                By.CSS_SELECTOR, "div > div:nth-child(2)"
-            ).text
-            print(f"{reply['replie_by']} -> reply: {reply['reply']}")
+            try:
+                reply["reply_to"] = box.find_element(
+                    By.CSS_SELECTOR, "div > div:nth-child(2) > a"
+                ).text
+            except:
+                None
+            reply_spans = box.find_elements(
+                By.CSS_SELECTOR, "div > div:nth-child(2) > span"
+            )
+            reply["reply"] = "".join([reply_span.text for reply_span in reply_spans])
+            reply["order"] = idx
             replies.append(reply)
         try:
             prev_comment_btn = WebDriverWait(driver, 2).until(
@@ -149,7 +160,6 @@ def replies_scraping(box_comment):
         except:
             break
     driver.close()
-    time.sleep(0.5)
     driver.switch_to.window(driver.window_handles[1])
     return replies
 
@@ -163,7 +173,8 @@ def comments_scraping():
             By.CSS_SELECTOR,
             "#m_story_permalink_view > div[id] > div > div:not([id]) > div:has(div)",
         )
-
+        if len(box_comments) == 0:
+            return None
         for box_comment in box_comments:
             comment = dict()
             comment["comment_by"] = box_comment.find_element(
@@ -240,9 +251,9 @@ while True:
             if not len(rows) == 0:
                 print(f"Already have post_id : {post_id}")
                 continue
-        print(f"Start scraping post_id: {post_id}.")
         driver.execute_script(f"window.open('{a}', '_blank')")
         driver.switch_to.window(driver.window_handles[1])
+        print(f"Start scraping post_id: {post_id}.")
 
         post = post_scraping()
 
@@ -267,14 +278,13 @@ while True:
                     continue
                 for reply in replies:
                     cursor.execute(
-                        "INSERT INTO replies (reply_by, reply, comment_id) VALUES (?, ?, ?)",
-                        (reply["replie_by"], reply["reply"], comment_id),
+                        "INSERT INTO replies (reply_by, reply_to, reply, order, comment_id) VALUES (?, ?, ?, ?, ?)",
+                        (reply["reply_by"], reply["reply_to"], reply["reply"], reply['order'], comment_id),
                     )
             connection.commit()
         print(f"Save to database complated as post_id: {post_id}.")
 
         driver.close()
-        time.sleep(0.5)
         driver.switch_to.window(driver.window_handles[0])
     try:
         see_more_posts_btn = WebDriverWait(driver, 2).until(
