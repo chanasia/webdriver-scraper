@@ -17,16 +17,27 @@ except (socket.timeout, socket.error):
     print(f"An error occurred. Please run selenium stand alone.")
     sys.exit(1)
 
-load_dotenv()
-if not os.environ.get('EMAIL') or os.environ.get('PASS'): 
-  if not os.getenv("EMAIL") or not os.getenv("PASS"):
-      print("Environment not found.")
-      sys.exit(1)
+EMAIL = None
+PASS = None
+MAIN_GROUP_ID = None
+
+EMAIL = os.environ.get("EMAIL")
+PASS = os.environ.get("PASS")
+MAIN_GROUP_ID = os.environ.get("MAIN_GROUP_ID")
+if load_dotenv():
+    EMAIL = os.getenv("EMAIL")
+    PASS = os.getenv("PASS")
+    MAIN_GROUP_ID = os.getenv("MAIN_GROUP_ID")
+
+if not EMAIL or not PASS or MAIN_GROUP_ID:
+    print("Environment not found. Please check if the env has EMAIL, PASS and MAIN_GROUP_ID.")
+    sys.exit(1)
+    
 
 options = webdriver.ChromeOptions()
-options.add_argument('--disable-notifications')
-options.add_argument('--ignore-ssl-errors=yes')
-options.add_argument('--ignore-certificate-errors')
+options.add_argument("--disable-notifications")
+options.add_argument("--ignore-ssl-errors=yes")
+options.add_argument("--ignore-certificate-errors")
 
 driver = webdriver.Remote(
     command_executor="http://localhost:4444/wd/hub", options=options
@@ -43,20 +54,22 @@ password = WebDriverWait(driver, 10).until(
 )
 
 username.clear()
-username.send_keys(os.environ.get("EMAIL") )
+username.send_keys(EMAIL)
 password.clear()
-password.send_keys(os.environ.get("PASS"))
+password.send_keys(PASS)
 WebDriverWait(driver, 2).until(
     EC.element_to_be_clickable((By.CSS_SELECTOR, 'input[type="submit"]'))
 ).click()
 WebDriverWait(driver, 2).until(
-    EC.element_to_be_clickable((By.CSS_SELECTOR, 'tr > td > div > form[method="post"] + div a'))
+    EC.element_to_be_clickable(
+        (By.CSS_SELECTOR, 'tr > td > div > form[method="post"] + div a')
+    )
 ).click()
 print("Login completed")
 
 driver.switch_to.window(driver.window_handles[0])
 
-main_group_link = "https://mbasic.facebook.com/groups/1991721561082549/"
+main_group_link = f"https://mbasic.facebook.com/groups/{MAIN_GROUP_ID}/"
 driver.get(main_group_link)
 
 with sqlite3.connect("posts.db") as connection:
@@ -96,18 +109,17 @@ with sqlite3.connect("posts.db") as connection:
   """
     )
 
+
 def replies_scraping(box_comment):
     try:
-        replies_url = (
-            box_comment
-            .find_element(By.CSS_SELECTOR, "div > div:nth-child(5) > div[id] a[href]")
-            .get_attribute("href")
-        )
+        replies_url = box_comment.find_element(
+            By.CSS_SELECTOR, "div > div:nth-child(5) > div[id] a[href]"
+        ).get_attribute("href")
         driver.execute_script(f"window.open('{replies_url}', '_blank')")
         driver.switch_to.window(driver.window_handles[2])
     except:
         return None
-    
+
     reply_id = re.search(r"ctoken=(\d+_\d+)", driver.current_url).group(1)
     replies = []
 
@@ -137,10 +149,11 @@ def replies_scraping(box_comment):
         except:
             break
     driver.close()
-    time.sleep(.5)
+    time.sleep(0.5)
     driver.switch_to.window(driver.window_handles[1])
     return replies
-  
+
+
 def comments_scraping():
     post_id = re.search(r"/permalink/(\d+)", driver.current_url).group(1)
     comments = []
@@ -183,20 +196,22 @@ def comments_scraping():
     print(f"Complete post id: {post_id}")
     return comments
 
+
 def post_scraping():
     post_id = re.search(r"/permalink/(\d+)", driver.current_url).group(1)
     post = dict()
     post["post_id"] = post_id
     post["topic"] = driver.find_element(
         By.CSS_SELECTOR,
-        '#m_story_permalink_view div:not([id]) > div > div > div',
+        "#m_story_permalink_view div:not([id]) > div > div > div",
     ).text
     post["topic_by"] = driver.find_element(
         By.CSS_SELECTOR, "td > header > h3 > span > strong:first-child > a"
     ).text
     post["comments"] = comments_scraping()
     return post
-  
+
+
 def reset_tab():
     print("Program is restarting.")
     for idx, tab in enumerate(driver.window_handles):
@@ -207,12 +222,13 @@ def reset_tab():
     driver.switch_to.window(driver.window_handles[0])
     driver.get(main_group_link)
     print("Restart finished.")
-  
+
+
 while True:
     anchors = driver.find_elements(
         By.CSS_SELECTOR, "article > footer > div:last-child > a:nth-child(5)"
     )
-    anchors = [a.get_attribute('href') for a in anchors]
+    anchors = [a.get_attribute("href") for a in anchors]
 
     for a in anchors:
         post_id = re.search(r"/permalink/(\d+)", a).group(1)
@@ -224,12 +240,12 @@ while True:
             if not len(rows) == 0:
                 print(f"Already have post_id : {post_id}")
                 continue
-        print(f'Start scraping post_id: {post_id}.')
+        print(f"Start scraping post_id: {post_id}.")
         driver.execute_script(f"window.open('{a}', '_blank')")
         driver.switch_to.window(driver.window_handles[1])
-        
+
         post = post_scraping()
-        
+
         with sqlite3.connect("posts.db") as connection:
             cursor = connection.cursor()
             cursor.execute(
@@ -252,15 +268,15 @@ while True:
                 for reply in replies:
                     cursor.execute(
                         "INSERT INTO replies (reply_by, reply, comment_id) VALUES (?, ?, ?)",
-                        (reply['replie_by'], reply['reply'], comment_id),
+                        (reply["replie_by"], reply["reply"], comment_id),
                     )
             connection.commit()
         print(f"Save to database complated as post_id: {post_id}.")
-            
+
         driver.close()
         time.sleep(0.5)
         driver.switch_to.window(driver.window_handles[0])
-    try:    
+    try:
         see_more_posts_btn = WebDriverWait(driver, 2).until(
             EC.element_to_be_clickable(
                 (
