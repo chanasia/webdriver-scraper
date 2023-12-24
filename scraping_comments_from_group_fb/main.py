@@ -122,7 +122,7 @@ def replies_scraping(box_comment):
         driver.execute_script(f"window.open('{replies_url}', '_blank')")
         driver.switch_to.window(driver.window_handles[2])
     except:
-        return None
+        return []
 
     reply_id = re.search(r"ctoken=(\d+_\d+)", driver.current_url).group(1)
     replies = []
@@ -177,7 +177,7 @@ def comments_scraping():
             "#m_story_permalink_view > div[id] > div > div:not([id]) > div:has(div)",
         )
         if len(box_comments) == 0:
-            return None
+            return []
         for box_comment in box_comments:
             comment = dict()
             comment["comment_by"] = box_comment.find_element(
