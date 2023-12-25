@@ -278,7 +278,7 @@ while True:
     )
     anchor_post_shares = [a.get_attribute("href") for a in anchor_post_shares]
     anchors = list(set(anchor_all) - set(anchor_post_shares))
-
+    print(anchors)
     for a in anchors:
         post_id = re.search(r"/permalink/(\d+)", a).group(1)
         with sqlite3.connect("posts.db") as connection:

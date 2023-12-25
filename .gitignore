@@ -29,7 +29,7 @@ MANIFEST
 
 data.json
 test.json
-posts.db
+posts*.db
 index.html
 
 # PyInstaller
