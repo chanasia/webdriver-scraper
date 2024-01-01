@@ -4,6 +4,13 @@
 - python 3.10^
 - docker
 
+# ENV Example.
+```env
+EMAIL=
+PASS=
+MAIN_GROUP_ID=
+```
+
 # Usage python script.
 ## Create a virtual environment.
 ```bash
