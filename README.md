@@ -9,6 +9,7 @@
 ```bash
 python -v venv pyenv
 ```
+### For windows
 ```bash
 /pyenv/Script/activate
 ```
