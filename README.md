@@ -6,9 +6,9 @@
 
 # ENV Example.
 ```env
-EMAIL=
-PASS=
-MAIN_GROUP_ID=
+EMAIL=Your Facebook email.
+PASS=Your Facebook password.
+MAIN_GROUP_ID=Your Facebook group id.
 ```
 
 # Usage python script.
