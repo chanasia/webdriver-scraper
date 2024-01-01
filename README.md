@@ -4,7 +4,7 @@
 - python 3.10^
 - docker
 
-# Useage python script.
+# Usage python script.
 ## Create a virtual environment.
 ```bash
 python -v venv pyenv
