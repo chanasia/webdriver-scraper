@@ -19,7 +19,7 @@ cd /scraping_comments_from_group_fb
 ```
 docker-compose up -d
 ```
-## Run python script
+## Run python script.
 ```bash
 python main.py
 ```
